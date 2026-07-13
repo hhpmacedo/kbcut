@@ -2,6 +2,7 @@ mod config;
 mod daemon;
 mod inject;
 mod keymap;
+mod layout;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
