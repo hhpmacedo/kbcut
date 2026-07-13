@@ -44,7 +44,7 @@ pub fn run() -> Result<()> {
         .unwrap_or_else(|| "us".to_string());
     eprintln!("kbcut: using xkb layout '{layout}'");
 
-    let mut keymap = Keymap::new(&layout)?;
+    let mut keymap = Keymap::new(&layout, "")?;
     // Create the virtual device before enumerating so we can skip our own
     // event node by name.
     let mut injector = Injector::new()?;

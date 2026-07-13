@@ -17,18 +17,20 @@ pub struct Keymap {
 }
 
 impl Keymap {
-    pub fn new(layout: &str) -> Result<Self> {
+    pub fn new(layout: &str, variant: &str) -> Result<Self> {
         let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
         let keymap = xkb::Keymap::new_from_names(
             &context,
-            "",     // rules
-            "",     // model
-            layout, // layout
-            "",     // variant
-            None,   // options
+            "",      // rules
+            "",      // model
+            layout,  // layout
+            variant, // variant
+            None,    // options
             xkb::KEYMAP_COMPILE_NO_FLAGS,
         )
-        .ok_or_else(|| anyhow!("failed to compile xkb keymap for layout '{layout}'"))?;
+        .ok_or_else(|| {
+            anyhow!("failed to compile xkb keymap for layout '{layout}' variant '{variant}'")
+        })?;
         let state = xkb::State::new(&keymap);
         let reverse = build_reverse_map(&keymap);
         Ok(Self { state, reverse })
@@ -124,7 +126,7 @@ mod tests {
 
     #[test]
     fn space_and_letters_are_typeable() {
-        let km = Keymap::new("us").unwrap();
+        let km = Keymap::new("us", "").unwrap();
         for c in ['b', 'e', ' ', '!', 'A'] {
             let combo = km.combo_for(c);
             println!("{c:?} -> {combo:?}");
@@ -132,5 +134,15 @@ mod tests {
         }
         let space = km.combo_for(' ').unwrap();
         assert_eq!(space.keycode, 57, "space should be evdev KEY_SPACE (57)");
+    }
+
+    #[test]
+    fn variant_compiles_and_changes_map() {
+        // "us" vs "us(intl)": intl has dead keys; plain "us" must still work
+        // through the two-arg signature.
+        let plain = Keymap::new("us", "").unwrap();
+        assert!(plain.combo_for('a').is_some());
+        let intl = Keymap::new("us", "intl").unwrap();
+        assert!(intl.combo_for('a').is_some());
     }
 }
