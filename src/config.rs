@@ -41,3 +41,42 @@ pub fn save(config: &Config) -> Result<()> {
     std::fs::write(&path, raw).with_context(|| format!("writing {}", path.display()))?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn roundtrip(cfg: &Config) -> Config {
+        let raw = toml::to_string_pretty(cfg).unwrap();
+        toml::from_str(&raw).unwrap()
+    }
+
+    #[test]
+    fn roundtrip_backslashes_quotes_emoji_multiline() {
+        let mut cfg = Config::default();
+        cfg.replacements
+            .insert("zshrug".into(), r"¯\_(ツ)_/¯".into());
+        cfg.replacements
+            .insert("zquote".into(), r#"she said "hi""#.into());
+        cfg.replacements.insert("zparty".into(), "🎉🎉".into());
+        cfg.replacements
+            .insert("zsig".into(), "Hugo\nhumanready.io\n".into());
+        assert_eq!(roundtrip(&cfg).replacements, cfg.replacements);
+    }
+
+    #[test]
+    fn roundtrip_punctuation_trigger_keys() {
+        // Bare TOML keys can't contain '>' — serializer must quote them.
+        let mut cfg = Config::default();
+        cfg.replacements.insert("-->".into(), "→".into());
+        cfg.replacements.insert("(c)".into(), "©".into());
+        assert_eq!(roundtrip(&cfg).replacements, cfg.replacements);
+    }
+
+    #[test]
+    fn invalid_escape_is_a_parse_error_not_a_panic() {
+        // The literal development bug: \_ is not a valid TOML escape.
+        let raw = "[replacements]\nzshrug = \"¯\\_(ツ)_/¯\"\n";
+        assert!(toml::from_str::<Config>(raw).is_err());
+    }
+}

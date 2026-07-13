@@ -36,7 +36,13 @@ struct Pending {
 }
 
 pub fn run() -> Result<()> {
-    let cfg = config::load()?;
+    let cfg = config::load().unwrap_or_else(|e| {
+        eprintln!(
+            "kbcut: config is invalid, starting with no replacements \
+             (fix the file and it reloads automatically): {e:#}"
+        );
+        config::Config::default()
+    });
     let layout = cfg
         .layout
         .clone()
