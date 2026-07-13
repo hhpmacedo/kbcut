@@ -4,6 +4,7 @@
 
 use anyhow::{Context, Result};
 use std::io::Write;
+use std::path::Path;
 use std::process::Command;
 
 const UDEV_RULE: &str = include_str!("../packaging/99-kbcut-uinput.rules");
@@ -131,4 +132,89 @@ fn in_group_configured(group: &str) -> bool {
             })
         })
         .unwrap_or(false)
+}
+
+pub fn run_doctor() -> Result<()> {
+    let mut failed = false;
+    let mut check = |name: &str, ok: bool, hint: &str| {
+        println!("{} {name}", if ok { "✓" } else { "✗" });
+        if !ok {
+            println!("    → {hint}");
+            failed = true;
+        }
+    };
+
+    check(
+        "uinput kernel module",
+        Path::new("/sys/class/misc/uinput").exists(),
+        "sudo modprobe uinput (and check it's not blacklisted)",
+    );
+    check(
+        "/dev/uinput writable",
+        std::fs::OpenOptions::new().write(true).open("/dev/uinput").is_ok(),
+        "run `kbcut setup` to install the udev rule, then log out and back in",
+    );
+    let active = in_group_active("input");
+    let configured = in_group_configured("input");
+    check(
+        "input group membership",
+        active,
+        if configured {
+            "group is configured but not active — log out and back in"
+        } else {
+            "run `kbcut setup` (adds you to the input group)"
+        },
+    );
+    check(
+        "udev rule installed",
+        Path::new(UDEV_RULE_PATH).exists(),
+        "run `kbcut setup`",
+    );
+    let readable_devices = evdev::enumerate().count();
+    check(
+        &format!("input devices readable ({readable_devices})"),
+        readable_devices > 0,
+        "needs the input group active — log out and back in after setup",
+    );
+
+    match crate::config::load() {
+        Ok(cfg) => check(
+            &format!("config parses ({} replacements)", cfg.replacements.len()),
+            true,
+            "",
+        ),
+        Err(e) => check("config parses", false, &format!("{e:#}")),
+    }
+
+    let cfg_layout = crate::config::load().ok().and_then(|c| c.layout);
+    let detection = crate::layout::init(cfg_layout.as_deref());
+    let source = match detection.backend {
+        Some(b) => format!("{} backend", b.name()),
+        None => "config override".to_string(),
+    };
+    check(&format!("layout: '{}' via {source}", detection.spec), true, "");
+
+    let clip = crate::clipboard::Backend::detect();
+    check(
+        &format!("clipboard: {}", clip.describe()),
+        clip.available(),
+        "install wl-clipboard (Wayland) or xclip (X11) for emoji/special-char replacements",
+    );
+
+    let service = Command::new("systemctl")
+        .args(["--user", "is-active", "kbcut"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|_| "unknown (no systemd)".into());
+    check(
+        &format!("service: {service}"),
+        service == "active",
+        "systemctl --user start kbcut (or run `kbcut daemon` manually)",
+    );
+
+    if failed {
+        anyhow::bail!("some checks failed — see hints above");
+    }
+    println!("\nAll checks passed.");
+    Ok(())
 }

@@ -32,6 +32,8 @@ enum Command {
         #[arg(long)]
         print: bool,
     },
+    /// Check the installation and environment, with fix hints
+    Doctor,
 }
 
 fn main() -> Result<()> {
@@ -65,6 +67,7 @@ fn main() -> Result<()> {
         }
         Command::Daemon => daemon::run()?,
         Command::Setup { print } => setup::run_setup(print)?,
+        Command::Doctor => setup::run_doctor()?,
     }
     Ok(())
 }
