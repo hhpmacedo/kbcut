@@ -3,7 +3,6 @@ use evdev::{Device, EventType, InputEventKind, Key};
 use notify::{RecursiveMode, Watcher};
 use std::collections::{BTreeMap, HashSet};
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -12,6 +11,7 @@ use std::time::Duration;
 use crate::config;
 use crate::inject::{Injector, VIRTUAL_DEVICE_NAME};
 use crate::keymap::Keymap;
+use crate::layout::{self, LayoutSpec};
 
 const MAX_WORD_LEN: usize = 64;
 const RESCAN_INTERVAL: Duration = Duration::from_secs(10);
@@ -22,6 +22,7 @@ enum Msg {
     ReloadConfig,
     DeviceGone(PathBuf),
     NewDevice(PathBuf),
+    LayoutChanged(LayoutSpec),
 }
 
 /// A matched expansion waiting for the boundary key and all modifiers to be
@@ -43,14 +44,11 @@ pub fn run() -> Result<()> {
         );
         config::Config::default()
     });
-    let layout = cfg
-        .layout
-        .clone()
-        .or_else(detect_gnome_layout)
-        .unwrap_or_else(|| "us".to_string());
-    eprintln!("kbcut: using xkb layout '{layout}'");
-
-    let mut keymap = Keymap::new(&layout, "")?;
+    let detection = layout::init(cfg.layout.as_deref());
+    let mut keymap = Keymap::new(
+        &detection.spec.layout,
+        detection.spec.variant.as_deref().unwrap_or(""),
+    )?;
     // Create the virtual device before enumerating so we can skip our own
     // event node by name.
     let mut injector = Injector::new()?;
@@ -58,6 +56,17 @@ pub fn run() -> Result<()> {
     eprintln!("kbcut: {} replacement(s) loaded", triggers.len());
 
     let (tx, rx) = channel::<Msg>();
+    if let Some(backend) = detection.backend {
+        let watch_tx = tx.clone();
+        layout::spawn_watcher(
+            backend,
+            detection.spec.clone(),
+            Arc::clone(&detection.registry),
+            move |spec| {
+                let _ = watch_tx.send(Msg::LayoutChanged(spec));
+            },
+        );
+    }
     let open_paths: Arc<Mutex<HashSet<PathBuf>>> = Arc::new(Mutex::new(HashSet::new()));
 
     for (path, device) in enumerate_devices() {
@@ -88,6 +97,19 @@ pub fn run() -> Result<()> {
             Msg::PointerButton => {
                 word.clear();
                 pending = None;
+            }
+            Msg::LayoutChanged(spec) => {
+                match Keymap::new(&spec.layout, spec.variant.as_deref().unwrap_or("")) {
+                    Ok(new_keymap) => {
+                        keymap = new_keymap;
+                        // Never decode one word under two layouts: drop the
+                        // buffer AND any expansion waiting for key release.
+                        word.clear();
+                        pending = None;
+                        eprintln!("kbcut: layout switched to '{spec}'");
+                    }
+                    Err(e) => eprintln!("kbcut: keeping previous layout, switch failed: {e:#}"),
+                }
             }
             Msg::DeviceGone(path) => {
                 open_paths.lock().unwrap().remove(&path);
@@ -355,30 +377,4 @@ fn spawn_config_watcher(tx: Sender<Msg>) -> Result<notify::RecommendedWatcher> {
         .watch(&dir, RecursiveMode::NonRecursive)
         .context("watching config directory")?;
     Ok(watcher)
-}
-
-/// First xkb layout configured in GNOME, e.g. [('xkb', 'us'), ('xkb', 'pt')] -> "us".
-fn detect_gnome_layout() -> Option<String> {
-    // mru-sources tracks actual switch order, its first entry is the layout
-    // in effect right now. `sources` is only the configured list order and
-    // does not change when the user switches layouts, so it can't tell us
-    // which one is active.
-    for key in ["mru-sources", "sources"] {
-        if let Some(layout) = gnome_input_source_layout(key) {
-            return Some(layout);
-        }
-    }
-    None
-}
-
-fn gnome_input_source_layout(key: &str) -> Option<String> {
-    let out = Command::new("gsettings")
-        .args(["get", "org.gnome.desktop.input-sources", key])
-        .output()
-        .ok()?;
-    let text = String::from_utf8(out.stdout).ok()?;
-    let start = text.find("('xkb', '")? + "('xkb', '".len();
-    let rest = &text[start..];
-    let end = rest.find('\'')?;
-    Some(rest[..end].to_string())
 }
