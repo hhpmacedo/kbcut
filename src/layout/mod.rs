@@ -1,3 +1,4 @@
+pub mod backends;
 pub mod registry;
 
 /// An xkb layout selection: layout code plus optional variant.
