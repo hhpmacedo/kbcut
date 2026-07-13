@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use crate::clipboard;
 use crate::config;
 use crate::inject::{Injector, VIRTUAL_DEVICE_NAME};
 use crate::keymap::Keymap;
@@ -51,7 +52,9 @@ pub fn run() -> Result<()> {
     )?;
     // Create the virtual device before enumerating so we can skip our own
     // event node by name.
-    let mut injector = Injector::new()?;
+    let clip = clipboard::Backend::detect();
+    eprintln!("kbcut: clipboard backend: {}", clip.describe());
+    let mut injector = Injector::new(clip)?;
     let mut triggers = cfg.replacements.clone();
     eprintln!("kbcut: {} replacement(s) loaded", triggers.len());
 

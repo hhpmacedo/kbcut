@@ -1,11 +1,10 @@
 use anyhow::{Context, Result};
 use evdev::uinput::{VirtualDevice, VirtualDeviceBuilder};
 use evdev::{AttributeSet, EventType, InputEvent, Key};
-use std::io::Write;
-use std::process::{Command, Stdio};
 use std::thread::sleep;
 use std::time::Duration;
 
+use crate::clipboard;
 use crate::keymap::Keymap;
 
 pub const VIRTUAL_DEVICE_NAME: &str = "kbcut virtual keyboard";
@@ -24,10 +23,11 @@ const PRE_INJECT_DELAY: Duration = Duration::from_millis(10);
 
 pub struct Injector {
     device: VirtualDevice,
+    clipboard: clipboard::Backend,
 }
 
 impl Injector {
-    pub fn new() -> Result<Self> {
+    pub fn new(clipboard: clipboard::Backend) -> Result<Self> {
         let mut keys = AttributeSet::<Key>::new();
         // Register every key the reverse keymap could ask for.
         for code in 0..=255u16 {
@@ -38,7 +38,7 @@ impl Injector {
             .name(VIRTUAL_DEVICE_NAME)
             .with_keys(&keys)?
             .build()?;
-        Ok(Self { device })
+        Ok(Self { device, clipboard })
     }
 
     fn emit_key(&mut self, code: u16, pressed: bool) -> Result<()> {
@@ -81,7 +81,7 @@ impl Injector {
         let fully_typeable = text
             .chars()
             .all(|c| matches!(c, '\n' | '\t') || keymap.combo_for(c).is_some());
-        if fully_typeable {
+        if fully_typeable || !self.clipboard.available() {
             self.type_text(text, keymap)?;
         } else {
             self.paste_text(text)?;
@@ -108,15 +108,10 @@ impl Injector {
     }
 
     fn paste_text(&mut self, text: &str) -> Result<()> {
-        let previous_clipboard = Command::new("wl-paste")
-            .args(["--no-newline"])
-            .output()
-            .ok()
-            .filter(|o| o.status.success())
-            .map(|o| o.stdout);
+        let previous_clipboard = self.clipboard.get();
 
-        if let Err(e) = clipboard_set(text) {
-            eprintln!("kbcut: clipboard paste failed, typing what's typeable instead: {e:#}");
+        if let Err(e) = self.clipboard.set(text.as_bytes()) {
+            eprintln!("kbcut: clipboard set failed, typing what's typeable instead: {e:#}");
             return Ok(());
         }
 
@@ -126,27 +121,8 @@ impl Injector {
         sleep(PASTE_SETTLE_DELAY);
 
         if let Some(prev) = previous_clipboard {
-            let _ = clipboard_set_bytes(&prev);
+            let _ = self.clipboard.set(&prev);
         }
         Ok(())
     }
-}
-
-fn clipboard_set(text: &str) -> Result<()> {
-    clipboard_set_bytes(text.as_bytes())
-}
-
-fn clipboard_set_bytes(bytes: &[u8]) -> Result<()> {
-    let mut child = Command::new("wl-copy")
-        .stdin(Stdio::piped())
-        .spawn()
-        .context("spawning wl-copy (is wl-clipboard installed?)")?;
-    child
-        .stdin
-        .take()
-        .expect("stdin was piped")
-        .write_all(bytes)
-        .context("writing to wl-copy stdin")?;
-    child.wait().context("waiting for wl-copy")?;
-    Ok(())
 }
