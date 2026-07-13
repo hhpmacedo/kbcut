@@ -6,7 +6,9 @@
 
 use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
+use std::io::BufReader;
 use std::process::Command;
+use std::process::Stdio;
 
 use super::registry::Registry;
 use super::LayoutSpec;
@@ -352,4 +354,43 @@ mod tests {
         assert_eq!(parse_localectl(out).unwrap(), LayoutSpec::new("pt", None::<String>));
         assert!(parse_localectl("X11 Layout: (unset)\n").is_none());
     }
+}
+
+/// A line stream whose every line means "the layout may have changed —
+/// re-detect". Child stdout for CLI monitors, a unix socket for Hyprland.
+pub type WatchStream = Box<dyn std::io::BufRead + Send>;
+
+impl Backend {
+    /// None → caller polls `current()` instead (X11, localectl).
+    pub fn watch_stream(&self) -> Option<WatchStream> {
+        match self {
+            Backend::Gnome => spawn_lines(
+                "gsettings",
+                &["monitor", "org.gnome.desktop.input-sources", "mru-sources"],
+            ),
+            Backend::Sway => spawn_lines("swaymsg", &["-t", "subscribe", "-m", r#"["input"]"#]),
+            Backend::Kde => spawn_lines(
+                "dbus-monitor",
+                &["type='signal',interface='org.kde.KeyboardLayouts',member='layoutChanged'"],
+            ),
+            Backend::Hyprland => {
+                let runtime = std::env::var("XDG_RUNTIME_DIR").ok()?;
+                let sig = std::env::var("HYPRLAND_INSTANCE_SIGNATURE").ok()?;
+                let path = format!("{runtime}/hypr/{sig}/.socket2.sock");
+                let stream = std::os::unix::net::UnixStream::connect(path).ok()?;
+                Some(Box::new(BufReader::new(stream)))
+            }
+            Backend::X11 | Backend::Localectl => None,
+        }
+    }
+}
+
+fn spawn_lines(bin: &str, args: &[&str]) -> Option<WatchStream> {
+    let child = Command::new(bin)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    Some(Box::new(BufReader::new(child.stdout?)))
 }
