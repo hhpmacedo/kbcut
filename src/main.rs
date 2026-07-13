@@ -4,6 +4,7 @@ mod daemon;
 mod inject;
 mod keymap;
 mod layout;
+mod setup;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -25,8 +26,12 @@ enum Command {
     List,
     /// Run the expansion daemon (foreground)
     Daemon,
-    /// Print the one-time system setup instructions
-    Setup,
+    /// Install udev rule, input group, and systemd user service
+    Setup {
+        /// Print the commands instead of running them
+        #[arg(long)]
+        print: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -59,31 +64,7 @@ fn main() -> Result<()> {
             }
         }
         Command::Daemon => daemon::run()?,
-        Command::Setup => print_setup(),
+        Command::Setup { print } => setup::run_setup(print)?,
     }
     Ok(())
-}
-
-fn print_setup() {
-    println!(
-        r#"One-time system setup (run from the repo root):
-
-  # 1. Let your user read input devices and write to uinput
-  sudo cp packaging/99-kbcut-uinput.rules /etc/udev/rules.d/
-  sudo udevadm control --reload-rules && sudo udevadm trigger
-  sudo usermod -aG input $USER
-
-  # 2. Install the binary and the systemd user service
-  cargo build --release
-  mkdir -p ~/.local/bin ~/.config/systemd/user
-  cp target/release/kbcut ~/.local/bin/
-  cp packaging/kbcut.service ~/.config/systemd/user/
-  systemctl --user daemon-reload
-  systemctl --user enable kbcut
-
-  # 3. Log out and back in (group membership takes effect at login),
-  #    then the service starts automatically. To start it right away:
-  systemctl --user start kbcut
-"#
-    );
 }
