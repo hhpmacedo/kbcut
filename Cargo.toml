@@ -1,0 +1,20 @@
+[package]
+name = "kbcut"
+version = "0.1.0"
+edition = "2021"
+description = "Seamless text replacement for Linux (Wayland-friendly), like macOS text shortcuts"
+license = "MIT"
+
+[dependencies]
+evdev = "0.12"
+xkbcommon = "0.7"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+notify = "6"
+anyhow = "1"
+dirs = "5"
+
+[profile.release]
+lto = true
+strip = true

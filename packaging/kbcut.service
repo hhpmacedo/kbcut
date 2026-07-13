@@ -1,0 +1,11 @@
+[Unit]
+Description=kbcut text replacement daemon
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/kbcut daemon
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
