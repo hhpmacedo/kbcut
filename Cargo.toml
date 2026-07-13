@@ -1,9 +1,13 @@
 [package]
 name = "kbcut"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Seamless text replacement for Linux (Wayland-friendly), like macOS text shortcuts"
 license = "MIT"
+repository = "https://github.com/hhpmacedo/kbcut"
+readme = "README.md"
+keywords = ["text-expansion", "wayland", "uinput", "keyboard", "snippets"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 evdev = "0.12"
