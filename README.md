@@ -4,34 +4,23 @@ Seamless text replacement for Linux, macOS-style. Type `brb` followed by a
 space or punctuation and it becomes `be right back` — in every app, including
 terminals, on Wayland.
 
-## Requirements
+## Install
 
-kbcut is built for a specific machine setup, not a generic cross-desktop tool:
+    cargo install kbcut
+    kbcut setup      # udev rule, input group, systemd service — asks before each step
+    kbcut doctor     # verify
 
-- **Linux only**, with the `uinput` kernel module (default on virtually every
-  distro) — this is what lets kbcut inject synthetic keystrokes.
-- **systemd user session**, if you want it running in the background. Setup
-  installs a `systemd --user` unit; there's no other supported service
-  manager. You can still run `kbcut daemon` by hand without systemd.
-- **GNOME**, for automatic keyboard layout detection. kbcut shells out to
-  `gsettings get org.gnome.desktop.input-sources mru-sources` to find the
-  layout you're *currently* typing with. On any other desktop this call
-  fails silently and kbcut falls back to `us` — set `layout` explicitly in
-  the config if that's wrong for you.
-- **Wayland, for replacements with characters outside your keyboard layout**
-  (emoji, `¯`, `ツ`, etc.). Those are delivered via clipboard paste using
-  `wl-copy`/`wl-paste` (`wl-clipboard` package), which is Wayland-only.
-  Under X11 those characters are silently skipped — there's no X11 paste
-  fallback implemented. Plain-ASCII replacements are unaffected either way,
-  since they're typed as real keystrokes, not pasted.
-- Your user must be in the `input` group and have the udev rule below
-  installed, granting read access to `/dev/input/*` and write access to
-  `/dev/uinput`.
+Log out and back in (group membership applies at login).
+
+Requires Linux with the `uinput` module (default on virtually every distro).
+The background service assumes a `systemd --user` session; without one, run
+`kbcut daemon` from your session autostart. `kbcut setup --print` shows the
+commands without running them.
 
 ## How it works
 
 A small daemon reads keyboard events from `/dev/input` (this bypasses
-Wayland's keystroke isolation, which is why the setup below is needed) and
+Wayland's keystroke isolation, which is why the setup above is needed) and
 decodes them with your xkb layout. When a trigger word is followed by a word
 boundary (space, `.,;:!?`, brackets, quotes), it injects backspaces and the
 replacement text through a virtual `uinput` keyboard. Because the daemon can
@@ -49,56 +38,59 @@ kbcut list                      # show all
 Replacements live in `~/.config/kbcut/config.toml`; the daemon reloads it
 automatically when it changes. Multi-line replacements work (`\n` in TOML).
 
-## One-time setup
+Prefer `kbcut add` over hand-editing the TOML file directly — it correctly
+escapes special characters (backslashes, quotes, punctuation trigger keys).
+Hand-editing is how a real bug got hit during development: `\_` inside a
+replacement is not a valid TOML escape sequence and fails to parse.
 
-```bash
-cargo build --release
+## Layout detection
 
-# Allow your user to read input devices and use uinput
-sudo cp packaging/99-kbcut-uinput.rules /etc/udev/rules.d/
-sudo udevadm control --reload-rules && sudo udevadm trigger
-sudo usermod -aG input $USER
+The active xkb layout is detected automatically on GNOME, KDE, Sway, and
+Hyprland, using each desktop's own tooling. On anything else, kbcut falls
+back to generic X11 (`setxkbmap`) or, failing that, `localectl`.
 
-# Install binary + autostart service
-mkdir -p ~/.local/bin ~/.config/systemd/user
-cp target/release/kbcut ~/.local/bin/
-cp packaging/kbcut.service ~/.config/systemd/user/
-systemctl --user daemon-reload && systemctl --user enable kbcut
-```
+Layout switching is now live-tracked: switching keyboard layouts no longer
+requires restarting the daemon (this was a limitation in v0.1).
 
-Log out and back in (group membership applies at login), then:
-
-```bash
-systemctl --user start kbcut
-journalctl --user -u kbcut -f    # watch logs
-```
-
-## Configuration
-
-`~/.config/kbcut/config.toml`:
+If expansions come out with wrong or garbled characters, the first thing to
+try is pinning the layout explicitly in the config, which disables all
+detection:
 
 ```toml
-# Optional: override the xkb layout used to decode keys.
-# Defaults to your first GNOME input source.
-# layout = "pt"
-
-[replacements]
-brb = "be right back"
-omw = "on my way!"
+layout = "pt"
+# or with a variant:
+layout = "pt(nativo)"
 ```
 
-## Known limitations (v1)
+## Special characters
 
-- **Layout is detected once at startup**: kbcut picks up whichever xkb
-  layout GNOME reports as currently active (or `layout` from the config)
-  when the daemon starts, then keeps using it. If you switch layouts
-  (us ⇄ pt) while the daemon is running, decoding keeps following the
-  layout from startup until you restart it.
+Characters not directly typeable on the current layout (emoji, `¯`, `ツ`,
+`→`, etc.) are delivered via clipboard paste, using `wl-clipboard` on
+Wayland or `xclip`/`xsel` on X11. If none of those are installed, those
+characters are skipped and kbcut prints a one-time startup warning naming
+which package to install. Plain ASCII-typeable replacements are unaffected
+either way — they're typed as real keystrokes, not pasted.
+
+## Known limitations
+
 - **Enter/Tab don't trigger expansion** — they clear the buffer instead.
   In chat apps, Enter would send the unexpanded trigger before the daemon
   could repair it, so only printable boundaries (space, punctuation) expand.
 - **Caps Lock**: injected replacement text will come out with inverted case
   while Caps Lock is on.
-- Characters not reachable on your layout (emoji, `¯`, `ツ`, etc.) are
-  pasted via the clipboard on Wayland; on X11 they're silently skipped
-  (see Requirements above).
+- **X11's active layout can't be queried directly** — `setxkbmap` doesn't
+  expose which of your configured layouts is currently active, so kbcut
+  uses the first configured layout there and polls periodically. This is
+  best-effort and not planned to be fixed in this release; pin `layout` in
+  the config if it picks the wrong one.
+
+## Troubleshooting
+
+Run `kbcut doctor` first — it checks the udev rule, input group membership,
+and systemd service, and is also the standard thing to attach to a bug
+report. If expansions produce wrong characters, try pinning `layout = "..."`
+in the config (see Layout detection above). To watch live logs:
+
+```bash
+journalctl --user -u kbcut -f
+```
