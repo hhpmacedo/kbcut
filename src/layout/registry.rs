@@ -22,12 +22,18 @@ impl Registry {
                 return Self::from_xml(&xml);
             }
         }
-        eprintln!("kbcut: xkb registry (evdev.xml) not found; descriptive layout names won't resolve");
-        Self { by_description: HashMap::new() }
+        eprintln!(
+            "kbcut: xkb registry (evdev.xml) not found; descriptive layout names won't resolve"
+        );
+        Self {
+            by_description: HashMap::new(),
+        }
     }
 
     pub fn from_xml(xml: &str) -> Self {
-        Self { by_description: parse_evdev_xml(xml) }
+        Self {
+            by_description: parse_evdev_xml(xml),
+        }
     }
 
     /// Resolve either an xkb code ("pt") or a description ("Portuguese").
@@ -40,7 +46,11 @@ impl Registry {
             return Some(spec.clone());
         }
         // Already a code (short, ascii-lowercase, possibly "pt+nativo")
-        if name.len() <= 32 && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '_') {
+        if name.len() <= 32
+            && name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '_')
+        {
             return Some(match name.split_once('+') {
                 Some((l, v)) => LayoutSpec::new(l, Some(v)),
                 None => LayoutSpec::new(name, None::<String>),
@@ -87,7 +97,10 @@ fn parse_evdev_xml(xml: &str) -> HashMap<String, LayoutSpec> {
             if let Some(name) = pending_name.take() {
                 if in_variant {
                     if let Some(layout) = &current_layout {
-                        map.insert(desc.to_string(), LayoutSpec::new(layout.clone(), Some(name)));
+                        map.insert(
+                            desc.to_string(),
+                            LayoutSpec::new(layout.clone(), Some(name)),
+                        );
                     }
                 } else {
                     current_layout = Some(name.clone());
@@ -157,21 +170,33 @@ mod tests {
     #[test]
     fn resolves_layout_descriptions() {
         let r = Registry::from_xml(FIXTURE);
-        assert_eq!(r.resolve("Portuguese"), Some(LayoutSpec::new("pt", None::<String>)));
-        assert_eq!(r.resolve("English (US)"), Some(LayoutSpec::new("us", None::<String>)));
+        assert_eq!(
+            r.resolve("Portuguese"),
+            Some(LayoutSpec::new("pt", None::<String>))
+        );
+        assert_eq!(
+            r.resolve("English (US)"),
+            Some(LayoutSpec::new("us", None::<String>))
+        );
     }
 
     #[test]
     fn resolves_variant_descriptions() {
         let r = Registry::from_xml(FIXTURE);
-        assert_eq!(r.resolve("Portuguese (Nativo)"), Some(LayoutSpec::new("pt", Some("nativo"))));
+        assert_eq!(
+            r.resolve("Portuguese (Nativo)"),
+            Some(LayoutSpec::new("pt", Some("nativo")))
+        );
     }
 
     #[test]
     fn passes_codes_through_and_splits_plus() {
         let r = Registry::from_xml(FIXTURE);
         assert_eq!(r.resolve("pt"), Some(LayoutSpec::new("pt", None::<String>)));
-        assert_eq!(r.resolve("pt+nativo"), Some(LayoutSpec::new("pt", Some("nativo"))));
+        assert_eq!(
+            r.resolve("pt+nativo"),
+            Some(LayoutSpec::new("pt", Some("nativo")))
+        );
     }
 
     #[test]
@@ -186,7 +211,10 @@ mod tests {
         // Smoke test against the actual file where available (dev machines, CI).
         if std::path::Path::new("/usr/share/X11/xkb/rules/evdev.xml").exists() {
             let r = Registry::load();
-            assert_eq!(r.resolve("Portuguese"), Some(LayoutSpec::new("pt", None::<String>)));
+            assert_eq!(
+                r.resolve("Portuguese"),
+                Some(LayoutSpec::new("pt", None::<String>))
+            );
         }
     }
 }

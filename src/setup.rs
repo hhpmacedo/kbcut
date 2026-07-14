@@ -15,7 +15,9 @@ pub fn run_setup(print_only: bool) -> Result<()> {
     let bin = std::env::current_exe().context("locating the kbcut binary")?;
     let bin = bin.display().to_string();
     let unit = SERVICE_TEMPLATE.replace("%h/.local/bin/kbcut", &bin);
-    let unit_dir = dirs::config_dir().context("no config dir")?.join("systemd/user");
+    let unit_dir = dirs::config_dir()
+        .context("no config dir")?
+        .join("systemd/user");
     let unit_path = unit_dir.join("kbcut.service");
     let has_systemd = Command::new("systemctl")
         .args(["--user", "--version"])
@@ -38,9 +40,14 @@ pub fn run_setup(print_only: bool) -> Result<()> {
     }
 
     // ── udev rule ──────────────────────────────────────────────────────────
-    if std::fs::read_to_string(UDEV_RULE_PATH).map(|c| c == UDEV_RULE).unwrap_or(false) {
+    if std::fs::read_to_string(UDEV_RULE_PATH)
+        .map(|c| c == UDEV_RULE)
+        .unwrap_or(false)
+    {
         println!("✓ udev rule already installed");
-    } else if confirm(&format!("Install udev rule to {UDEV_RULE_PATH} (needs sudo)?"))? {
+    } else if confirm(&format!(
+        "Install udev rule to {UDEV_RULE_PATH} (needs sudo)?"
+    ))? {
         sudo_write(UDEV_RULE_PATH, UDEV_RULE)?;
         run_visible("sudo", &["udevadm", "control", "--reload-rules"])?;
         run_visible("sudo", &["udevadm", "trigger"])?;
@@ -65,9 +72,15 @@ pub fn run_setup(print_only: bool) -> Result<()> {
         println!("! no systemd user session detected — run `kbcut daemon` from your session autostart instead");
         return Ok(());
     }
-    if std::fs::read_to_string(&unit_path).map(|c| c == unit).unwrap_or(false) {
+    if std::fs::read_to_string(&unit_path)
+        .map(|c| c == unit)
+        .unwrap_or(false)
+    {
         println!("✓ systemd unit already installed");
-    } else if confirm(&format!("Install systemd user unit to {}?", unit_path.display()))? {
+    } else if confirm(&format!(
+        "Install systemd user unit to {}?",
+        unit_path.display()
+    ))? {
         std::fs::create_dir_all(&unit_dir)?;
         std::fs::write(&unit_path, &unit)?;
         run_visible("systemctl", &["--user", "daemon-reload"])?;
@@ -91,7 +104,10 @@ fn confirm(question: &str) -> Result<bool> {
 
 fn run_visible(bin: &str, args: &[&str]) -> Result<()> {
     println!("  $ {bin} {}", args.join(" "));
-    let status = Command::new(bin).args(args).status().with_context(|| format!("running {bin}"))?;
+    let status = Command::new(bin)
+        .args(args)
+        .status()
+        .with_context(|| format!("running {bin}"))?;
     anyhow::ensure!(status.success(), "{bin} exited with {status}");
     Ok(())
 }
@@ -104,7 +120,11 @@ fn sudo_write(path: &str, content: &str) -> Result<()> {
         .stdout(std::process::Stdio::null())
         .spawn()
         .context("spawning sudo tee")?;
-    child.stdin.take().expect("piped").write_all(content.as_bytes())?;
+    child
+        .stdin
+        .take()
+        .expect("piped")
+        .write_all(content.as_bytes())?;
     anyhow::ensure!(child.wait()?.success(), "sudo tee failed");
     Ok(())
 }
@@ -128,7 +148,10 @@ fn in_group_configured(group: &str) -> bool {
             content.lines().any(|l| {
                 let mut parts = l.split(':');
                 parts.next() == Some(group)
-                    && parts.nth(2).map(|members| members.split(',').any(|m| m == user)).unwrap_or(false)
+                    && parts
+                        .nth(2)
+                        .map(|members| members.split(',').any(|m| m == user))
+                        .unwrap_or(false)
             })
         })
         .unwrap_or(false)
@@ -151,7 +174,10 @@ pub fn run_doctor() -> Result<()> {
     );
     check(
         "/dev/uinput writable",
-        std::fs::OpenOptions::new().write(true).open("/dev/uinput").is_ok(),
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open("/dev/uinput")
+            .is_ok(),
         "run `kbcut setup` to install the udev rule, then log out and back in",
     );
     let active = in_group_active("input");
@@ -192,7 +218,11 @@ pub fn run_doctor() -> Result<()> {
         Some(b) => format!("{} backend", b.name()),
         None => "config override".to_string(),
     };
-    check(&format!("layout: '{}' via {source}", detection.spec), true, "");
+    check(
+        &format!("layout: '{}' via {source}", detection.spec),
+        true,
+        "",
+    );
 
     let clip = crate::clipboard::Backend::detect();
     check(

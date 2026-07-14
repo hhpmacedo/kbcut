@@ -241,7 +241,20 @@ fn is_boundary(c: char) -> bool {
     c.is_whitespace()
         || matches!(
             c,
-            '.' | ',' | ';' | ':' | '!' | '?' | '(' | ')' | '[' | ']' | '{' | '}' | '"' | '\'' | '…'
+            '.' | ','
+                | ';'
+                | ':'
+                | '!'
+                | '?'
+                | '('
+                | ')'
+                | '['
+                | ']'
+                | '{'
+                | '}'
+                | '"'
+                | '\''
+                | '…'
         )
 }
 
@@ -319,7 +332,8 @@ fn spawn_reader(
                 }
                 let msg = match event.kind() {
                     InputEventKind::Key(k)
-                        if pointer && matches!(k, Key::BTN_LEFT | Key::BTN_RIGHT | Key::BTN_MIDDLE) =>
+                        if pointer
+                            && matches!(k, Key::BTN_LEFT | Key::BTN_RIGHT | Key::BTN_MIDDLE) =>
                     {
                         if event.value() == 1 {
                             Msg::PointerButton
@@ -345,7 +359,9 @@ fn spawn_reader(
 fn spawn_rescan(tx: Sender<Msg>, open_paths: Arc<Mutex<HashSet<PathBuf>>>) {
     thread::spawn(move || loop {
         thread::sleep(RESCAN_INTERVAL);
-        let Ok(entries) = std::fs::read_dir("/dev/input") else { continue };
+        let Ok(entries) = std::fs::read_dir("/dev/input") else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             let name_ok = path

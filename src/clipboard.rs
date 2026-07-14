@@ -16,10 +16,7 @@ pub enum Backend {
 
 impl Backend {
     pub fn detect() -> Self {
-        Self::select(
-            |k| std::env::var(k).is_ok(),
-            |bin| which(bin),
-        )
+        Self::select(|k| std::env::var(k).is_ok(), |bin| which(bin))
     }
 
     /// Testable core: env presence + tool presence.
@@ -48,11 +45,9 @@ impl Backend {
             Backend::Wayland => "wl-clipboard (Wayland)".into(),
             Backend::Xclip => "xclip (X11)".into(),
             Backend::Xsel => "xsel (X11)".into(),
-            Backend::Disabled => {
-                "none — emoji/special-character replacements will be skipped \
+            Backend::Disabled => "none — emoji/special-character replacements will be skipped \
                  (install wl-clipboard on Wayland, or xclip on X11)"
-                    .into()
-            }
+                .into(),
         }
     }
 
@@ -96,9 +91,7 @@ impl Backend {
 
 fn which(bin: &str) -> bool {
     std::env::var_os("PATH")
-        .map(|paths| {
-            std::env::split_paths(&paths).any(|dir| dir.join(bin).is_file())
-        })
+        .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(bin).is_file()))
         .unwrap_or(false)
 }
 
@@ -110,7 +103,10 @@ mod tests {
     fn selection_order() {
         let all = |_: &str| true;
         let none = |_: &str| false;
-        assert_eq!(Backend::select(|k| k == "WAYLAND_DISPLAY", all), Backend::Wayland);
+        assert_eq!(
+            Backend::select(|k| k == "WAYLAND_DISPLAY", all),
+            Backend::Wayland
+        );
         assert_eq!(Backend::select(|k| k == "DISPLAY", all), Backend::Xclip);
         assert_eq!(
             Backend::select(|k| k == "DISPLAY", |b| b == "xsel"),

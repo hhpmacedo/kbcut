@@ -10,7 +10,11 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "kbcut", version, about = "Seamless text replacement, macOS-style")]
+#[command(
+    name = "kbcut",
+    version,
+    about = "Seamless text replacement, macOS-style"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -19,7 +23,10 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Add or update a replacement: kbcut add brb "be right back"
-    Add { trigger: String, replacement: String },
+    Add {
+        trigger: String,
+        replacement: String,
+    },
     /// Remove a replacement
     Rm { trigger: String },
     /// List all replacements
@@ -38,12 +45,16 @@ enum Command {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
-        Command::Add { trigger, replacement } => {
+        Command::Add {
+            trigger,
+            replacement,
+        } => {
             if trigger.chars().any(|c| c.is_whitespace()) {
                 anyhow::bail!("trigger cannot contain whitespace");
             }
             let mut cfg = config::load()?;
-            cfg.replacements.insert(trigger.clone(), replacement.clone());
+            cfg.replacements
+                .insert(trigger.clone(), replacement.clone());
             config::save(&cfg)?;
             println!("{trigger} → {replacement}");
         }

@@ -38,7 +38,11 @@ impl Keymap {
 
     /// Track a hardware key event so shift/caps/altgr state stays accurate.
     pub fn update(&mut self, evdev_code: u16, pressed: bool) {
-        let direction = if pressed { xkb::KeyDirection::Down } else { xkb::KeyDirection::Up };
+        let direction = if pressed {
+            xkb::KeyDirection::Down
+        } else {
+            xkb::KeyDirection::Up
+        };
         self.state
             .update_key(xkb::Keycode::new(evdev_code as u32 + 8), direction);
     }
@@ -62,7 +66,12 @@ impl Keymap {
     }
 
     pub fn is_modifier_active(&self) -> bool {
-        for name in [xkb::MOD_NAME_SHIFT, xkb::MOD_NAME_CTRL, xkb::MOD_NAME_ALT, xkb::MOD_NAME_LOGO] {
+        for name in [
+            xkb::MOD_NAME_SHIFT,
+            xkb::MOD_NAME_CTRL,
+            xkb::MOD_NAME_ALT,
+            xkb::MOD_NAME_LOGO,
+        ] {
             if self
                 .state
                 .mod_name_is_active(name, xkb::STATE_MODS_EFFECTIVE)
@@ -104,7 +113,9 @@ fn build_reverse_map(keymap: &xkb::Keymap) -> HashMap<char, KeyCombo> {
                 if cp == 0 {
                     continue;
                 }
-                let Some(c) = char::from_u32(cp) else { continue };
+                let Some(c) = char::from_u32(cp) else {
+                    continue;
+                };
                 if c.is_control() {
                     continue;
                 }

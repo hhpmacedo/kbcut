@@ -10,7 +10,10 @@ pub struct LayoutSpec {
 
 impl LayoutSpec {
     pub fn new(layout: impl Into<String>, variant: Option<impl Into<String>>) -> Self {
-        Self { layout: layout.into(), variant: variant.map(Into::into) }
+        Self {
+            layout: layout.into(),
+            variant: variant.map(Into::into),
+        }
     }
 
     /// Parse a config-file value: "pt" or "pt(nativo)".
@@ -41,9 +44,18 @@ mod tests {
 
     #[test]
     fn parses_config_layout_values() {
-        assert_eq!(LayoutSpec::parse("pt"), LayoutSpec::new("pt", None::<String>));
-        assert_eq!(LayoutSpec::parse("pt(nativo)"), LayoutSpec::new("pt", Some("nativo")));
-        assert_eq!(LayoutSpec::parse(" us "), LayoutSpec::new("us", None::<String>));
+        assert_eq!(
+            LayoutSpec::parse("pt"),
+            LayoutSpec::new("pt", None::<String>)
+        );
+        assert_eq!(
+            LayoutSpec::parse("pt(nativo)"),
+            LayoutSpec::new("pt", Some("nativo"))
+        );
+        assert_eq!(
+            LayoutSpec::parse(" us "),
+            LayoutSpec::new("us", None::<String>)
+        );
     }
 }
 
@@ -69,7 +81,11 @@ pub fn init(config_layout: Option<&str>) -> Detection {
     if let Some(value) = config_layout {
         let spec = LayoutSpec::parse(value);
         eprintln!("kbcut: layout '{spec}' pinned by config, detection disabled");
-        return Detection { spec, backend: None, registry: Arc::new(Registry::from_xml("")) };
+        return Detection {
+            spec,
+            backend: None,
+            registry: Arc::new(Registry::from_xml("")),
+        };
     }
     let registry = Arc::new(Registry::load());
     let backend = backends::select_backend(|k| std::env::var(k).ok());
@@ -90,7 +106,11 @@ pub fn init(config_layout: Option<&str>) -> Detection {
         },
         None => (LayoutSpec::new("us", None::<String>), None),
     };
-    Detection { spec, backend, registry }
+    Detection {
+        spec,
+        backend,
+        registry,
+    }
 }
 
 /// Watch for live layout switches. Calls `on_change` with each NEW layout

@@ -123,7 +123,10 @@ fn run(bin: &str, args: &[&str]) -> Result<String> {
 
 fn kde_read(key: &str) -> Result<String> {
     for bin in ["kreadconfig6", "kreadconfig5"] {
-        if let Ok(v) = run(bin, &["--file", "kxkbrc", "--group", "Layout", "--key", key]) {
+        if let Ok(v) = run(
+            bin,
+            &["--file", "kxkbrc", "--group", "Layout", "--key", key],
+        ) {
             return Ok(v.trim().to_string());
         }
     }
@@ -132,8 +135,18 @@ fn kde_read(key: &str) -> Result<String> {
 
 fn kde_active_index() -> Result<usize> {
     for bin in ["qdbus6", "qdbus"] {
-        if let Ok(v) = run(bin, &["org.kde.keyboard", "/Layouts", "org.kde.KeyboardLayouts.getLayout"]) {
-            return v.trim().parse::<usize>().context("parsing KDE layout index");
+        if let Ok(v) = run(
+            bin,
+            &[
+                "org.kde.keyboard",
+                "/Layouts",
+                "org.kde.KeyboardLayouts.getLayout",
+            ],
+        ) {
+            return v
+                .trim()
+                .parse::<usize>()
+                .context("parsing KDE layout index");
         }
     }
     Err(anyhow!("qdbus not available"))
@@ -269,16 +282,24 @@ mod tests {
     #[test]
     fn select_backend_priority() {
         let env = |vars: &[(&str, &str)]| {
-            let vars: Vec<(String, String)> =
-                vars.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+            let vars: Vec<(String, String)> = vars
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
             move |key: &str| vars.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
         };
         assert_eq!(
-            select_backend(env(&[("SWAYSOCK", "/run/sway.sock"), ("XDG_CURRENT_DESKTOP", "GNOME")])),
+            select_backend(env(&[
+                ("SWAYSOCK", "/run/sway.sock"),
+                ("XDG_CURRENT_DESKTOP", "GNOME")
+            ])),
             Some(Backend::Sway)
         );
         assert_eq!(
-            select_backend(env(&[("HYPRLAND_INSTANCE_SIGNATURE", "abc"), ("DISPLAY", ":0")])),
+            select_backend(env(&[
+                ("HYPRLAND_INSTANCE_SIGNATURE", "abc"),
+                ("DISPLAY", ":0")
+            ])),
             Some(Backend::Hyprland)
         );
         assert_eq!(
@@ -289,7 +310,10 @@ mod tests {
             select_backend(env(&[("XDG_CURRENT_DESKTOP", "KDE"), ("DISPLAY", ":0")])),
             Some(Backend::Kde)
         );
-        assert_eq!(select_backend(env(&[("DISPLAY", ":0")])), Some(Backend::X11));
+        assert_eq!(
+            select_backend(env(&[("DISPLAY", ":0")])),
+            Some(Backend::X11)
+        );
         assert_eq!(select_backend(env(&[])), Some(Backend::Localectl));
     }
 
@@ -345,13 +369,19 @@ mod tests {
         let spec = parse_setxkbmap(out).unwrap();
         assert_eq!(spec, LayoutSpec::new("pt", Some("nativo")));
         let out = "rules:      evdev\nlayout:     us\n";
-        assert_eq!(parse_setxkbmap(out).unwrap(), LayoutSpec::new("us", None::<String>));
+        assert_eq!(
+            parse_setxkbmap(out).unwrap(),
+            LayoutSpec::new("us", None::<String>)
+        );
     }
 
     #[test]
     fn localectl_x11_layout_line() {
         let out = "   System Locale: LANG=en_US.UTF-8\n       VC Keymap: pt-latin1\n      X11 Layout: pt\n       X11 Model: pc105\n";
-        assert_eq!(parse_localectl(out).unwrap(), LayoutSpec::new("pt", None::<String>));
+        assert_eq!(
+            parse_localectl(out).unwrap(),
+            LayoutSpec::new("pt", None::<String>)
+        );
         assert!(parse_localectl("X11 Layout: (unset)\n").is_none());
     }
 }
