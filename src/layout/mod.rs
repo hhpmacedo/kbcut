@@ -1,6 +1,13 @@
 pub mod backends;
 pub mod registry;
 
+use std::io::BufRead;
+use std::sync::Arc;
+use std::time::Duration;
+
+use backends::Backend;
+use registry::Registry;
+
 /// An xkb layout selection: layout code plus optional variant.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LayoutSpec {
@@ -37,34 +44,6 @@ impl std::fmt::Display for LayoutSpec {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_config_layout_values() {
-        assert_eq!(
-            LayoutSpec::parse("pt"),
-            LayoutSpec::new("pt", None::<String>)
-        );
-        assert_eq!(
-            LayoutSpec::parse("pt(nativo)"),
-            LayoutSpec::new("pt", Some("nativo"))
-        );
-        assert_eq!(
-            LayoutSpec::parse(" us "),
-            LayoutSpec::new("us", None::<String>)
-        );
-    }
-}
-
-use std::io::BufRead;
-use std::sync::Arc;
-use std::time::Duration;
-
-use backends::Backend;
-use registry::Registry;
 
 const POLL_INTERVAL: Duration = Duration::from_secs(3);
 
@@ -152,5 +131,26 @@ fn redetect(
             *last = spec.clone();
             on_change(spec);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_config_layout_values() {
+        assert_eq!(
+            LayoutSpec::parse("pt"),
+            LayoutSpec::new("pt", None::<String>)
+        );
+        assert_eq!(
+            LayoutSpec::parse("pt(nativo)"),
+            LayoutSpec::new("pt", Some("nativo"))
+        );
+        assert_eq!(
+            LayoutSpec::parse(" us "),
+            LayoutSpec::new("us", None::<String>)
+        );
     }
 }

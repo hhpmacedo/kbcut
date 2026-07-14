@@ -16,7 +16,7 @@ pub enum Backend {
 
 impl Backend {
     pub fn detect() -> Self {
-        Self::select(|k| std::env::var(k).is_ok(), |bin| which(bin))
+        Self::select(|k| std::env::var(k).is_ok(), which)
     }
 
     /// Testable core: env presence + tool presence.
