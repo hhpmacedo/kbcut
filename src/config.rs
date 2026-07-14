@@ -6,7 +6,9 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     /// xkb layout used to translate keycodes to characters (e.g. "us", "pt").
-    /// Defaults to the first GNOME input source, falling back to "us".
+    /// Autodetected via the desktop's own tooling (GNOME/KDE/Sway/Hyprland,
+    /// with X11/localectl fallbacks) when unset; setting this pins the
+    /// layout and disables detection.
     #[serde(default)]
     pub layout: Option<String>,
 
